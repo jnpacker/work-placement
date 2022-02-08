@@ -1,0 +1,7 @@
+resources:
+- ../crd
+- ../rbac
+- ../prometheus
+- template-deployment.yaml
+
+namespace: open-cluster-management

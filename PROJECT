@@ -1,0 +1,16 @@
+domain: open-cluster-management.io
+layout:
+- go.kubebuilder.io/v3
+projectName: work-placement
+repo: jnpacker/work-placement
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: open-cluster-management.io
+  group: work.open-cluster-management.io
+  kind: PlaceManifestWork
+  path: jnpacker/work-placement/api/v1alpha1
+  version: v1alpha1
+version: "3"

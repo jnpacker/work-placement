@@ -1,0 +1,24 @@
+##
+# To use this sample, make sure your ManagedClusters have the label:
+#   usage: development
+##
+---
+apiVersion: cluster.open-cluster-management.io/v1alpha1
+kind: Placement
+metadata:
+  name: all-clusters
+  namespace: default
+spec:
+  #numberOfClusters: 6
+  clusterSets:
+  - all-clusters
+  predicates:
+  - requiredClusterSelector:
+      labelSelector:
+      #  matchLabels:
+      #    vendor: OpenShift
+        matchExpressions:
+        - key: usage
+          operator: "In"
+          values:
+          - development

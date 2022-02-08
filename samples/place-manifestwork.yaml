@@ -1,0 +1,17 @@
+apiVersion: work.open-cluster-management.io/v1alpha1
+kind: PlaceManifestWork
+metadata:
+  name: sample01
+spec:
+  manifestWorkSpec:
+    workload:
+      manifests:
+      - apiVersion: v1
+        data:
+          foo: bar
+        kind: ConfigMap
+        metadata:
+          name: sample01
+          namespace: default
+  placementRef:
+    name: all-clusters

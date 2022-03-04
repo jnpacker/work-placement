@@ -48,7 +48,10 @@ type PlaceManifestWorkReconciler struct {
 }
 
 const (
-	destroyFinalizer = "placemanifestwork.work.open-cluster-management.io/finalizer"
+	destroyFinalizer           = "placemanifestwork.work.open-cluster-management.io/finalizer"
+	PlacementLabel             = "cluster.open-cluster-management.io/placement"
+	placementManifestworkLabel = "cluster.open-cluster-management.io/placementmanifestwork"
+	LastReconcileTimestamp     = "placemanifestwork.work.open-cluster-management.io/lastPlacementTrigger"
 )
 
 //+kubebuilder:rbac:groups=work.open-cluster-management.io,resources=placementmanifestworks,verbs=get;list;watch;create;update;patch;delete
@@ -79,9 +82,6 @@ func (r *PlaceManifestWorkReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, nil
 	}
 
-	placementLabel := "cluster.open-cluster-management.io/placement"
-	placementManifestworkLabel := "cluster.open-cluster-management.io/placementmanifestwork"
-
 	var pdList pd.PlacementDecisionList
 	if pm.DeletionTimestamp != nil {
 		pdList.Items = []pd.PlacementDecision{}
@@ -91,14 +91,18 @@ func (r *PlaceManifestWorkReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			return ctrl.Result{}, r.updateStatusConditionsOnChange(&pm, pmw.PlacementDecisionVerified, metav1.ConditionFalse, "PlacementRef is not defined", pmw.PlacementDecisionNotFound)
 		}
 
-		if err := r.List(ctx, &pdList, client.MatchingLabels{placementLabel: pm.Spec.PlacementRef.Name}, client.InNamespace(pm.Namespace)); err != nil || len(pdList.Items) == 0 {
+		if err := r.List(ctx, &pdList, client.MatchingLabels{PlacementLabel: pm.Spec.PlacementRef.Name}, client.InNamespace(pm.Namespace)); err != nil || len(pdList.Items) == 0 {
 			log.Error(err, "PlacementRef did not produce a valid PlacementDecision")
 			return ctrl.Result{}, r.updateStatusConditionsOnChange(&pm, pmw.PlacementDecisionVerified, metav1.ConditionFalse, "PlacementRef did not produce a valid PlacementDecision", pmw.PlacementDecisionNotFound)
 		}
 
-		// Check the first times decision list is > 0
-		if len(pdList.Items[0].Status.Decisions) == 0 {
-			return ctrl.Result{}, r.updateStatusConditionsOnChange(&pm, pmw.PlacementDecisionVerified, metav1.ConditionFalse, "PlacementRef has not made any decisions", pmw.PlacementDecisionEmpty)
+		r.updateStatusConditionsOnChange(&pm, pmw.PlacementDecisionVerified, metav1.ConditionTrue, "", pmw.PlacementDecisionVerifiedAsExpected)
+
+		// Set the finalizer if its not present, and store the placement name for reconciling
+		if pm.ObjectMeta.Labels == nil {
+			pm.ObjectMeta.Labels = map[string]string{
+				placementManifestworkLabel: pm.Spec.PlacementRef.Name,
+			}
 		}
 
 		if !controllerutil.ContainsFinalizer(&pm, destroyFinalizer) {
@@ -106,10 +110,25 @@ func (r *PlaceManifestWorkReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				return ctrl.Result{}, err
 			}
 			log.Info("Add finalizer")
+			inPm := pm.DeepCopy()
 			controllerutil.AddFinalizer(&pm, destroyFinalizer)
-			if err := r.Update(ctx, &pm); err != nil {
+			if err := r.Patch(ctx, &pm, client.MergeFrom(inPm)); err != nil {
 				return ctrl.Result{}, err
 			}
+		}
+
+		if pm.ObjectMeta.Labels[pd.PlacementLabel] != pm.Spec.PlacementRef.Name {
+			log.Info("Update placementRef.name")
+			inPm := pm.DeepCopy()
+			pm.ObjectMeta.Labels[pd.PlacementLabel] = pm.Spec.PlacementRef.Name
+			if err := r.Patch(ctx, &pm, client.MergeFrom(inPm)); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+		// Check the first time decision list is > 0
+		if len(pdList.Items[0].Status.Decisions) == 0 {
+			return ctrl.Result{}, r.updateStatusConditionsOnChange(&pm, pmw.PlacementDecisionVerified, metav1.ConditionFalse, "PlacementRef has not made any decisions", pmw.PlacementDecisionEmpty)
 		}
 	}
 
@@ -138,7 +157,7 @@ func (r *PlaceManifestWorkReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			work, found := mwMap[clusterDecision.ClusterName]
 			if found {
 				update := false
-				if !reflect.DeepEqual(work.Spec.DeleteOption, pm.Spec.ManifestWorkSpec.DeleteOption) {
+				/*if !reflect.DeepEqual(work.Spec.DeleteOption, pm.Spec.ManifestWorkSpec.DeleteOption) {
 					work.Spec.DeleteOption = pm.Spec.ManifestWorkSpec.DeleteOption
 					log.Info("Changing Spec.DeleteOption")
 					update = true
@@ -146,6 +165,11 @@ func (r *PlaceManifestWorkReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				if !reflect.DeepEqual(work.Spec.ManifestConfigs, pm.Spec.ManifestWorkSpec.ManifestConfigs) {
 					work.Spec.ManifestConfigs = pm.Spec.ManifestWorkSpec.ManifestConfigs
 					log.Info("Changing Spec.DeleteOption")
+					update = true
+				}*/
+				if !reflect.DeepEqual(work.Spec, pm.Spec.ManifestWorkSpec) {
+					work.Spec = pm.Spec.ManifestWorkSpec
+					log.Info("Changing Spec")
 					update = true
 				}
 				// Remove the key, so that anything remaining in the map can be deleted at the end
@@ -209,8 +233,9 @@ func (r *PlaceManifestWorkReconciler) updateStatusConditionsOnChange(pm *pmw.Pla
 	var err error = nil
 	sc := meta.FindStatusCondition(pm.Status.Conditions, string(conditionType))
 	if sc == nil || sc.ObservedGeneration != pm.Generation || sc.Status != conditionStatus || sc.Reason != reason || sc.Message != message {
+		inPm := pm.DeepCopy()
 		setStatusCondition(pm, conditionType, conditionStatus, message, reason)
-		err = r.Client.Status().Update(r.ctx, pm)
+		err = r.Client.Status().Patch(r.ctx, pm, client.MergeFrom(inPm))
 		if err != nil {
 			if apierrors.IsConflict(err) {
 				r.Log.Error(err, "Conflict encountered when updating PlacementManifestwork.Status")

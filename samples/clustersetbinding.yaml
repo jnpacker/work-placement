@@ -1,0 +1,9 @@
+# This is the ManagedClusterSetBinding to the default namespace
+---
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: ManagedClusterSetBinding
+metadata:
+  name: default
+  namespace: default
+spec:
+  clusterSet: default

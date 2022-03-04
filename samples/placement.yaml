@@ -3,7 +3,7 @@
 #   usage: development
 ##
 ---
-apiVersion: cluster.open-cluster-management.io/v1alpha1
+apiVersion: cluster.open-cluster-management.io/v1beta1
 kind: Placement
 metadata:
   name: all-clusters
@@ -11,14 +11,14 @@ metadata:
 spec:
   #numberOfClusters: 6
   clusterSets:
-  - all-clusters
+  - default
   predicates:
   - requiredClusterSelector:
       labelSelector:
       #  matchLabels:
       #    vendor: OpenShift
-        matchExpressions:
-        - key: usage
-          operator: "In"
-          values:
-          - development
+      #  matchExpressions:
+      #  - key: usage
+      #    operator: "In"
+      #    values:
+      #    - development

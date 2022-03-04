@@ -62,15 +62,17 @@ make undeploy
 This sample assumes you have [Open-Cluster-Management.io setup](https://open-cluster-management.io/getting-started/)
 
 * You will need at least 1 `ManagedCluster` to be able to leverage the PlaceManifestWork
-* Create the sample `all-clusters` clusterSet
+* Creating a ManagedClusterSetBinding
   ```shell
-  # Creates a clusterSet named all-clusters and binds that to the default namespace
-  kubectl -n default apply -f samples/clusterset.yaml
+  kubectl apply -f samples/clustersetbinding.yaml
+  ```
+* Creates a placement resource in the default namespace targeting the all-clusters clusterSet
+    ```shell
+    kubectl -n default apply -f samples/placement.yaml
+    ```
 
-  # Creates a placement rule, in the default namespace targeting the all-clusters clusterSet
-  kubectl -n default apply -f samples/placement.yaml
-
-  # Creates the PlaceManifest work in the default namespace
+* Creates the PlaceManifest work in the default namespace
+  ```shell
   kubectl -n default apply -f samples/place-manifestwork.yaml
   ```
 

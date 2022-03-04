@@ -1,7 +1,7 @@
 apiVersion: work.open-cluster-management.io/v1alpha1
 kind: PlaceManifestWork
 metadata:
-  name: sample01
+  name: samples
 spec:
   manifestWorkSpec:
     workload:
@@ -11,7 +11,7 @@ spec:
           foo: bar
         kind: ConfigMap
         metadata:
-          name: sample01
+          name: samples
           namespace: default
   placementRef:
     name: all-clusters
